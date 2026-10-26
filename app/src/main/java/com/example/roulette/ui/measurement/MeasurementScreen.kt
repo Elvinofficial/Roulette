@@ -15,6 +15,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import androidx.compose.runtime.mutableIntStateOf
 
 private val Graphite = Color(0xFF242424)
 private val LightGray = Color(0xFFF5F5F5)
@@ -28,6 +39,34 @@ fun MeasurementScreen(
 ) {
     val points by viewModel.points.collectAsStateWithLifecycle()
     val distance = if (points.size == 2) viewModel.distance else null
+    val context = LocalContext.current
+
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasCameraPermission = granted
+    }
+
+    LaunchedEffect(Unit) {
+        if (!hasCameraPermission) {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+    var placePointRequest by remember {
+        mutableIntStateOf(0)
+    }
+    var isPlacementReady by remember {
+        mutableStateOf(false)
+    }
 
     Column(
         modifier = Modifier
@@ -67,6 +106,7 @@ fun MeasurementScreen(
         }
 
         // Поле измерения
+        // Поле измерения с AR-камерой
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -77,23 +117,34 @@ fun MeasurementScreen(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            MeasurementCanvas(points = points)
+            if (hasCameraPermission) {
+                ARCameraView(
+                    modifier = Modifier.fillMaxSize(),
+                    placePointRequest = placePointRequest,
 
-            if (distance != null) {
-                Surface(
-                    shape = RoundedCornerShape(50.dp),
-                    color = Graphite
-                ) {
-                    Text(
-                        text = "%.1f усл. ед.".format(distance),
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(
-                            horizontal = 16.dp,
-                            vertical = 10.dp
+                    onPlacementReadyChanged = { ready ->
+                        isPlacementReady = ready
+                    },
+
+                    onPointPlaced = { x, y, z ->
+                        android.util.Log.d(
+                            "RouletteAR",
+                            "AR point: x=$x, y=$y, z=$z"
                         )
-                    )
-                }
+                    }
+                )
+
+                CenterReticle(
+                    isReady = isPlacementReady
+                )
+            } else {
+
+                Text(
+                    text = "Для работы AR необходимо разрешение камеры",
+                    color = SecondaryText,
+                    fontSize = 14.sp
+                )
+
             }
         }
 
@@ -140,8 +191,15 @@ fun MeasurementScreen(
             contentAlignment = Alignment.Center
         ) {
             Button(
-                onClick = viewModel::addPoint,
-                enabled = points.size < 2,
+                onClick = {
+                    placePointRequest++
+
+                    android.util.Log.d(
+                        "RouletteAR",
+                        "Кнопка нажата: $placePointRequest"
+                    )
+                },
+                //enabled = points.size < 2,
                 modifier = Modifier.size(64.dp),
                 shape = CircleShape,
                 contentPadding = PaddingValues(0.dp),

@@ -11,6 +11,10 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Roulette">
+        <meta-data
+            android:name="com.google.ar.core"
+            android:value="required"
+            tools:replace="android:value" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -24,5 +28,17 @@
             </intent-filter>
         </activity>
     </application>
+    <!-- Разрешение на использование камеры -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Наличие камеры -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="true" />
+
+    <!-- Поддержка дополненной реальности -->
+    <uses-feature
+        android:name="android.hardware.camera.ar"
+        android:required="true" />
 
 </manifest>
