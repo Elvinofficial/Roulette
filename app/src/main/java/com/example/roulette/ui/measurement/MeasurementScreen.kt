@@ -1,44 +1,35 @@
 
 package com.example.roulette.ui.measurement
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
-import androidx.compose.runtime.mutableIntStateOf
 
 private val Graphite = Color(0xFF242424)
 private val LightGray = Color(0xFFF5F5F5)
 private val SecondaryText = Color(0xFF858585)
-private val BorderGray = Color(0xFFE8E8E8)
 
 @Composable
 fun MeasurementScreen(
     viewModel: MeasurementViewModel,
     onHistoryClick: () -> Unit
 ) {
-    val points by viewModel.points.collectAsStateWithLifecycle()
-    val distance = if (points.size == 2) viewModel.distance else null
     val context = LocalContext.current
 
     var hasCameraPermission by remember {
@@ -50,20 +41,39 @@ fun MeasurementScreen(
         )
     }
 
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        hasCameraPermission = granted
-    }
+    val cameraPermissionLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            hasCameraPermission = granted
+        }
 
     LaunchedEffect(Unit) {
         if (!hasCameraPermission) {
-            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+            cameraPermissionLauncher.launch(
+                Manifest.permission.CAMERA
+            )
         }
     }
+
+    // Запросы к ARCameraView
     var placePointRequest by remember {
         mutableIntStateOf(0)
     }
+
+    var undoPointRequest by remember {
+        mutableIntStateOf(0)
+    }
+
+    var clearPointsRequest by remember {
+        mutableIntStateOf(0)
+    }
+
+    // Фактическое число установленных AR-точек
+    var arPointCount by remember {
+        mutableIntStateOf(0)
+    }
+
     var isPlacementReady by remember {
         mutableStateOf(false)
     }
@@ -72,7 +82,10 @@ fun MeasurementScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(
+                horizontal = 20.dp,
+                vertical = 16.dp
+            ),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
 
@@ -82,15 +95,12 @@ fun MeasurementScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column {
-                Text(
-                    text = "Рулетка",
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Graphite
-                )
-
-            }
+            Text(
+                text = "Рулетка",
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Bold,
+                color = Graphite
+            )
 
             TextButton(
                 onClick = onHistoryClick,
@@ -105,8 +115,7 @@ fun MeasurementScreen(
             }
         }
 
-        // Поле измерения
-        // Поле измерения с AR-камерой
+        // Поле AR-камеры
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -118,18 +127,35 @@ fun MeasurementScreen(
             contentAlignment = Alignment.Center
         ) {
             if (hasCameraPermission) {
+
                 ARCameraView(
                     modifier = Modifier.fillMaxSize(),
-                    placePointRequest = placePointRequest,
 
+                    placePointRequest = placePointRequest,
+                    undoPointRequest = undoPointRequest,
+                    clearPointsRequest = clearPointsRequest,
+
+                    // Состояние поиска поверхности
                     onPlacementReadyChanged = { ready ->
                         isPlacementReady = ready
                     },
 
+                    // ARCameraView сообщает об установке точки
                     onPointPlaced = { x, y, z ->
-                        android.util.Log.d(
+                        Log.d(
                             "RouletteAR",
                             "AR point: x=$x, y=$y, z=$z"
+                        )
+                    },
+
+                    // Главное изменение:
+                    // синхронизируем UI с количеством AR-точек
+                    onPointCountChanged = { count ->
+                        arPointCount = count
+
+                        Log.d(
+                            "RouletteAR",
+                            "Количество AR-точек: $count"
                         )
                     }
                 )
@@ -137,20 +163,19 @@ fun MeasurementScreen(
                 CenterReticle(
                     isReady = isPlacementReady
                 )
-            } else {
 
+            } else {
                 Text(
                     text = "Для работы AR необходимо разрешение камеры",
                     color = SecondaryText,
                     fontSize = 14.sp
                 )
-
             }
         }
 
-        // Счётчик точек
+        // Счётчик реальных AR-точек
         Text(
-            text = "Точек: ${points.size}/2",
+            text = "Точек: $arPointCount/2",
             fontSize = 13.sp,
             color = SecondaryText
         )
@@ -161,8 +186,10 @@ fun MeasurementScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             OutlinedButton(
-                onClick = viewModel::undoPoint,
-                enabled = points.isNotEmpty(),
+                onClick = {
+                    undoPointRequest++
+                },
+                enabled = arPointCount > 0,
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
@@ -173,8 +200,10 @@ fun MeasurementScreen(
             }
 
             OutlinedButton(
-                onClick = viewModel::clearPoints,
-                enabled = points.isNotEmpty(),
+                onClick = {
+                    clearPointsRequest++
+                },
+                enabled = arPointCount > 0,
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
@@ -185,7 +214,7 @@ fun MeasurementScreen(
             }
         }
 
-        // Основная кнопка добавления точки
+        // Кнопка установки точки
         Box(
             modifier = Modifier.fillMaxWidth(),
             contentAlignment = Alignment.Center
@@ -194,12 +223,16 @@ fun MeasurementScreen(
                 onClick = {
                     placePointRequest++
 
-                    android.util.Log.d(
+                    Log.d(
                         "RouletteAR",
                         "Кнопка нажата: $placePointRequest"
                     )
                 },
-                //enabled = points.size < 2,
+
+                // После второй точки блокируем добавление
+                enabled = hasCameraPermission &&
+                        arPointCount < 2,
+
                 modifier = Modifier.size(64.dp),
                 shape = CircleShape,
                 contentPadding = PaddingValues(0.dp),
@@ -216,9 +249,11 @@ fun MeasurementScreen(
             }
         }
 
-        // Сохранение
+        // Сохранение добавим на следующем этапе
         Button(
-            onClick = { /* Будет позже */ },
+            onClick = {
+                // TODO: Сохранение измерения
+            },
             enabled = false,
             modifier = Modifier
                 .fillMaxWidth()
