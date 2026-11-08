@@ -4,34 +4,39 @@ package com.example.roulette.ui.measurement
 import android.Manifest
 import android.content.pm.PackageManager
 import android.util.Log
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 
-private val Graphite = Color(0xFF242424)
-private val LightGray = Color(0xFFF5F5F5)
-private val SecondaryText = Color(0xFF858585)
+import com.example.roulette.config.AppConfig
+import com.example.roulette.ui.components.RouletteButton
 
+// Цвет вспомогательного текста интерфейса
+private val SecondaryText = Color(0xFF666666)
+
+//  Основной экран измерений приложения
 @Composable
 fun MeasurementScreen(
     viewModel: MeasurementViewModel,
-    onHistoryClick: () -> Unit
+    onHistoryClick: () -> Unit,
+    onGuideClick: () -> Unit
 ) {
     val context = LocalContext.current
 
+    // Проверка, предоставлено ли приложению разрешение камеры
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -41,6 +46,7 @@ fun MeasurementScreen(
         )
     }
 
+    // Обработчик системного запроса разрешения
     val cameraPermissionLauncher =
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestPermission()
@@ -48,179 +54,179 @@ fun MeasurementScreen(
             hasCameraPermission = granted
         }
 
-    LaunchedEffect(Unit) {
-        if (!hasCameraPermission) {
+    // Запрашивает разрешение только при включённом AR.
+    LaunchedEffect(AppConfig.AR_ENABLED) {
+        if (AppConfig.AR_ENABLED && !hasCameraPermission) {
             cameraPermissionLauncher.launch(
                 Manifest.permission.CAMERA
             )
         }
     }
 
-    // Запросы к ARCameraView
+    // Запрос на установку новой точки
     var placePointRequest by remember {
         mutableIntStateOf(0)
     }
 
+    // Запрос на удаление последней точки
     var undoPointRequest by remember {
         mutableIntStateOf(0)
     }
 
+    // Запрос на удаление всех установленных точек
     var clearPointsRequest by remember {
         mutableIntStateOf(0)
     }
 
-    // Фактическое число установленных AR-точек
+    // Фактическое количество установленных AR-точек
     var arPointCount by remember {
         mutableIntStateOf(0)
     }
 
+    // Готовность ARCore к установке точки
     var isPlacementReady by remember {
         mutableStateOf(false)
     }
 
+ // ОСНОВНОЙ КОНТЕЙНЕР ЭКРАНА
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
+
+            // Учитывает системные панели Android
+            .safeDrawingPadding()
+
+            // Внутренние отступы интерфейса
             .padding(
                 horizontal = 20.dp,
                 vertical = 16.dp
             ),
+
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
 
-        // Заголовок
+        // ВЕРХНЯЯ ПАНЕЛЬ НАВИГАЦИИ
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = "Рулетка",
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Bold,
-                color = Graphite
+
+            // Открытие руководства пользователя
+            RouletteButton(
+                text = "Помощь",
+                onClick = onGuideClick,
+                modifier = Modifier.weight(1f)
             )
 
-            TextButton(
+            // Переход к истории измерений
+            RouletteButton(
+                text = "История",
                 onClick = onHistoryClick,
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = Graphite
-                )
-            ) {
-                Text(
-                    text = "История",
-                    fontSize = 14.sp
-                )
-            }
+                modifier = Modifier.weight(1f)
+            )
         }
 
-        // Поле AR-камеры
+        // ОБЛАСТЬ AR-КАМЕРЫ
         Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
                 .background(
-                    LightGray,
-                    RoundedCornerShape(24.dp)
+                    if (AppConfig.AR_ENABLED) {
+                        Color.Black
+                    } else {
+                        Color(0xFFF0F0F0)
+                    }
                 ),
             contentAlignment = Alignment.Center
         ) {
-            if (hasCameraPermission) {
+
+            // Создаёт AR сцену только при включённом AR
+            // и наличии разрешения на использование камеры
+            if (AppConfig.AR_ENABLED && hasCameraPermission) {
 
                 ARCameraView(
                     modifier = Modifier.fillMaxSize(),
 
+                    // Передаёт команды управления точками
                     placePointRequest = placePointRequest,
                     undoPointRequest = undoPointRequest,
                     clearPointsRequest = clearPointsRequest,
-
-                    // Состояние поиска поверхности
+                    // Получает информацию о готовности ARCore к установке новой точки
                     onPlacementReadyChanged = { ready ->
                         isPlacementReady = ready
                     },
-
-                    // ARCameraView сообщает об установке точки
+                    // Получает координаты успешно установленной точки в пространстве
                     onPointPlaced = { x, y, z ->
                         Log.d(
                             "RouletteAR",
                             "AR point: x=$x, y=$y, z=$z"
                         )
                     },
-
-                    // Главное изменение:
-                    // синхронизируем UI с количеством AR-точек
+                    // Синхронизирует отображаемое количество точек с фактическим состоянием AR-сцены
                     onPointCountChanged = { count ->
                         arPointCount = count
-
-                        Log.d(
-                            "RouletteAR",
-                            "Количество AR-точек: $count"
-                        )
                     }
                 )
-
-                CenterReticle(
-                    isReady = isPlacementReady
-                )
-
-            } else {
-                Text(
-                    text = "Для работы AR необходимо разрешение камеры",
-                    color = SecondaryText,
-                    fontSize = 14.sp
-                )
             }
+                // Прицел
+            CenterReticle(
+                isReady = AppConfig.AR_ENABLED && isPlacementReady
+            )
         }
 
-        // Счётчик реальных AR-точек
+        // СЧЁТЧИК УСТАНОВЛЕННЫХ ТОЧЕК
         Text(
             text = "Точек: $arPointCount/2",
-            fontSize = 13.sp,
+            fontSize = 16.sp,
             color = SecondaryText
         )
 
-        // Отмена и очистка
+        // УПРАВЛЕНИЕ УСТАНОВЛЕННЫМИ ТОЧКАМИ
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            OutlinedButton(
-                onClick = {
-                    undoPointRequest++
-                },
-                enabled = arPointCount > 0,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Graphite
-                )
-            ) {
-                Text("Отменить")
-            }
 
-            OutlinedButton(
+            // Удаление всех точек текущего измерения
+            RouletteButton(
+                text = "Очистить",
                 onClick = {
                     clearPointsRequest++
                 },
+
+                // Очистка доступна только при наличии точек
                 enabled = arPointCount > 0,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Graphite
-                )
-            ) {
-                Text("Очистить")
-            }
+                modifier = Modifier.weight(1f)
+            )
+
+            // Удаление последней установленной точки
+            RouletteButton(
+                text = "Отменить",
+                onClick = {
+                    undoPointRequest++
+                },
+
+                // Отмена доступна только при наличии точек
+                enabled = arPointCount > 0,
+                modifier = Modifier.weight(1f)
+            )
         }
 
-        // Кнопка установки точки
+
+        // КНОПКА УСТАНОВКИ НОВОЙ ТОЧКИ
         Box(
             modifier = Modifier.fillMaxWidth(),
             contentAlignment = Alignment.Center
         ) {
-            Button(
+
+            RouletteButton(
+                text = "+",
+
                 onClick = {
+                    // Отправляет запрос на установку точки
                     placePointRequest++
 
                     Log.d(
@@ -229,41 +235,26 @@ fun MeasurementScreen(
                     )
                 },
 
-                // После второй точки блокируем добавление
-                enabled = hasCameraPermission &&
-                        arPointCount < 2,
+                enabled = AppConfig.AR_ENABLED &&  hasCameraPermission && arPointCount < 2,
 
-                modifier = Modifier.size(64.dp),
-                shape = CircleShape,
-                contentPadding = PaddingValues(0.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Graphite,
-                    contentColor = Color.White
-                )
-            ) {
-                Text(
-                    text = "+",
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.Light
-                )
-            }
+                primary = true,
+
+                // Размер основной кнопки измерения
+                modifier = Modifier.width(68.dp),
+                height = 68.dp,
+                fontSize = 32.sp
+            )
         }
 
-        // Сохранение добавим на следующем этапе
-        Button(
+        // СОХРАНЕНИЕ ИЗМЕРЕНИЯ
+        RouletteButton(
+            text = "Сохранить измерение",
             onClick = {
-                // TODO: Сохранение измерения
+                // TODO: Реализовать сохранение измерения
             },
             enabled = false,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Graphite
-            )
-        ) {
-            Text("Сохранить измерение")
-        }
+            primary = true,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
