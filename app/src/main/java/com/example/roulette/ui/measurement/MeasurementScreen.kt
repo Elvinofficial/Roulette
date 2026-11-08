@@ -20,7 +20,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Undo
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Save
 import com.example.roulette.config.AppConfig
 import com.example.roulette.ui.components.RouletteButton
 
@@ -115,6 +122,7 @@ fun MeasurementScreen(
             // Открытие руководства пользователя
             RouletteButton(
                 text = "Помощь",
+                icon = Icons.Default.Info,
                 onClick = onGuideClick,
                 modifier = Modifier.weight(1f)
             )
@@ -122,6 +130,7 @@ fun MeasurementScreen(
             // Переход к истории измерений
             RouletteButton(
                 text = "История",
+                icon = Icons.Default.History,
                 onClick = onHistoryClick,
                 modifier = Modifier.weight(1f)
             )
@@ -193,6 +202,7 @@ fun MeasurementScreen(
             // Удаление всех точек текущего измерения
             RouletteButton(
                 text = "Очистить",
+                icon = Icons.Default.Delete,
                 onClick = {
                     clearPointsRequest++
                 },
@@ -205,6 +215,7 @@ fun MeasurementScreen(
             // Удаление последней установленной точки
             RouletteButton(
                 text = "Отменить",
+                icon = Icons.Default.Undo,
                 onClick = {
                     undoPointRequest++
                 },
@@ -249,6 +260,7 @@ fun MeasurementScreen(
         // СОХРАНЕНИЕ ИЗМЕРЕНИЯ
         RouletteButton(
             text = "Сохранить измерение",
+            icon = Icons.Default.Save,
             onClick = {
                 // TODO: Реализовать сохранение измерения
             },
