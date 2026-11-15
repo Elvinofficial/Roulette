@@ -30,6 +30,15 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Save
 import com.example.roulette.config.AppConfig
 import com.example.roulette.ui.components.RouletteButton
+import android.graphics.Bitmap
+import android.widget.Toast
+import androidx.compose.foundation.Image
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.window.Dialog
+import androidx.compose.material3.Button
+import kotlinx.coroutines.flow.collect
 
 // Цвет вспомогательного текста интерфейса
 private val SecondaryText = Color(0xFF666666)
@@ -42,6 +51,7 @@ fun MeasurementScreen(
     onGuideClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val uiState by viewModel.uiState.collectAsState()
 
     // Проверка, предоставлено ли приложению разрешение камеры
     var hasCameraPermission by remember {
@@ -85,14 +95,66 @@ fun MeasurementScreen(
         mutableIntStateOf(0)
     }
 
-    // Фактическое количество установленных AR-точек
-    var arPointCount by remember {
-        mutableIntStateOf(0)
-    }
 
     // Готовность ARCore к установке точки
     var isPlacementReady by remember {
         mutableStateOf(false)
+    }
+
+    // Команда получения AR-снимка
+    var captureRequest by remember {
+        mutableIntStateOf(0)
+    }
+
+// Фотография для предварительного просмотра
+    var previewBitmap by remember {
+        mutableStateOf<Bitmap?>(null)
+    }
+    // Расстояние на момент создания снимка
+    var captureDistanceMm by remember {
+        mutableStateOf<Int?>(null)
+    }
+
+// Расстояние, соответствующее снимку в окне просмотра
+    var previewDistanceMm by remember {
+        mutableStateOf<Int?>(null)
+    }
+
+// Выполняется ли захват изображения
+    var isCapturing by remember {
+        mutableStateOf(false)
+    }
+
+    val canSave = uiState.pointCount == 2 &&
+            (uiState.distanceMm ?: 0) > 0
+
+    LaunchedEffect(viewModel) {
+        viewModel.saveEvents.collect { event ->
+
+            when (event) {
+
+                is SaveMeasurementEvent.Success -> {
+
+                    previewBitmap = null
+                    previewDistanceMm = null
+
+                    Toast.makeText(
+                        context,
+                        "Измерение сохранено!",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+
+                is SaveMeasurementEvent.Error -> {
+
+                    Toast.makeText(
+                        context,
+                        event.message,
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
     }
 
  // ОСНОВНОЙ КОНТЕЙНЕР ЭКРАНА
@@ -175,9 +237,29 @@ fun MeasurementScreen(
                         )
                     },
                     // Синхронизирует отображаемое количество точек с фактическим состоянием AR-сцены
-                    onPointCountChanged = { count ->
-                        arPointCount = count
-                    }
+                    onPointCountChanged = viewModel::onPointCountChanged,
+                    onDistanceChanged = viewModel::onDistanceChanged,
+                    captureRequest = captureRequest,
+
+                    onSnapshotCaptured = { bitmap ->
+                        isCapturing = false
+
+                        previewDistanceMm = captureDistanceMm
+                        captureDistanceMm = null
+
+                        previewBitmap = bitmap
+                    },
+
+                    onSnapshotFailed = { message ->
+                        isCapturing = false
+                        captureDistanceMm = null
+
+                        Toast.makeText(
+                            context,
+                            message,
+                            Toast.LENGTH_LONG
+                        ).show()
+                    },
                 )
             }
                 // Прицел
@@ -188,7 +270,7 @@ fun MeasurementScreen(
 
         // СЧЁТЧИК УСТАНОВЛЕННЫХ ТОЧЕК
         Text(
-            text = "Точек: $arPointCount/2",
+            text = "Точек: ${uiState.pointCount}/2",
             fontSize = 16.sp,
             color = SecondaryText
         )
@@ -208,7 +290,7 @@ fun MeasurementScreen(
                 },
 
                 // Очистка доступна только при наличии точек
-                enabled = arPointCount > 0,
+                enabled = uiState.pointCount > 0,
                 modifier = Modifier.weight(1f)
             )
 
@@ -221,7 +303,7 @@ fun MeasurementScreen(
                 },
 
                 // Отмена доступна только при наличии точек
-                enabled = arPointCount > 0,
+                enabled = uiState.pointCount > 0,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -246,7 +328,7 @@ fun MeasurementScreen(
                     )
                 },
 
-                enabled = AppConfig.AR_ENABLED &&  hasCameraPermission && arPointCount < 2,
+                enabled = AppConfig.AR_ENABLED &&  hasCameraPermission && uiState.pointCount < 2,
 
                 primary = true,
 
@@ -261,12 +343,104 @@ fun MeasurementScreen(
         RouletteButton(
             text = "Сохранить измерение",
             icon = Icons.Default.Save,
+
             onClick = {
-                // TODO: Реализовать сохранение измерения
+                captureDistanceMm = uiState.distanceMm
+                isCapturing = true
+                captureRequest++
             },
-            enabled = false,
+
+            enabled = canSave &&
+                    !isCapturing &&
+                    !uiState.isSaving,
+
             primary = true,
             modifier = Modifier.fillMaxWidth()
         )
+    }
+    // Предварительный просмотр AR-снимка
+    previewBitmap?.let { bitmap ->
+
+        Dialog(
+            onDismissRequest = {
+                if (!uiState.isSaving) {
+                    previewBitmap = null
+                    previewDistanceMm = null
+                }
+            }
+        ) {
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.White)
+                    .padding(16.dp),
+
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "Снимок AR-измерения",
+
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 520.dp),
+
+                    contentScale = ContentScale.Fit
+                )
+
+                Spacer(
+                    modifier = Modifier.height(12.dp)
+                )
+
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+
+                    // Закрыть предварительный просмотр
+                    TextButton(
+                        onClick = {
+                            previewBitmap = null
+                            previewDistanceMm = null
+                        },
+                        enabled = !uiState.isSaving,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Закрыть")
+                    }
+
+                    // Сохранить фотографию и расстояние
+                    Button(
+                        onClick = {
+                            val distance = previewDistanceMm
+
+                            if (distance != null) {
+                                viewModel.saveMeasurement(
+                                    bitmap = bitmap,
+                                    distanceMm = distance
+                                )
+                            }
+                        },
+                        enabled = !uiState.isSaving &&
+                                previewDistanceMm != null,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            if (uiState.isSaving) {
+                                "Сохраняем..."
+                            } else {
+                                "Сохранить"
+                            }
+                        )
+                    }
+                }
+
+            }
+        }
     }
 }

@@ -40,6 +40,10 @@ import io.github.sceneview.rememberEngine
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
+import android.graphics.Bitmap
+import android.view.SurfaceView
+import com.example.roulette.data.capture.ArSnapshotCapturer
+import kotlinx.coroutines.CancellationException
 
 @Composable
 fun ARCameraView(
@@ -52,10 +56,24 @@ fun ARCameraView(
     onPointRemoved: () -> Unit = {},
     onAllPointsRemoved: () -> Unit = {},
     onDistanceChanged: (Int?) -> Unit = {},
-    onPointCountChanged: (Int) -> Unit = {}
+    onPointCountChanged: (Int) -> Unit = {},
+    captureRequest: Int = 0,
+    onSnapshotCaptured: (Bitmap) -> Unit = {},
+    onSnapshotFailed: (String) -> Unit = {}
 ) {
     val engine = rememberEngine()
     val context = LocalContext.current
+    // Ссылка на поверхность, в которой рисуется AR-сцена
+    val arSurfaceView = remember {
+        mutableStateOf<SurfaceView?>(null)
+    }
+
+// Актуальные обработчики результата захвата
+    val snapshotCapturedCallback =
+        rememberUpdatedState(onSnapshotCaptured)
+
+    val snapshotFailedCallback =
+        rememberUpdatedState(onSnapshotFailed)
 
     var sceneWidth by remember { mutableIntStateOf(0) }
     var sceneHeight by remember { mutableIntStateOf(0) }
@@ -155,6 +173,61 @@ fun ARCameraView(
     val cameraPoint = remember { FloatArray(4) }
     val clipPoint = remember { FloatArray(4) }
 
+    LaunchedEffect(captureRequest) {
+
+        if (captureRequest == 0) {
+            return@LaunchedEffect
+        }
+
+        val surface = arSurfaceView.value
+
+        if (surface == null) {
+            snapshotFailedCallback.value(
+                "AR-сцена ещё не готова"
+            )
+            return@LaunchedEffect
+        }
+
+        // Фиксируем данные измерения в момент запроса
+        val currentDistance = distanceMm
+        val currentPosition = labelPosition
+
+        if (currentDistance == null || currentPosition == null) {
+            snapshotFailedCallback.value(
+                "Наведите камеру так, чтобы измерение было видно"
+            )
+            return@LaunchedEffect
+        }
+
+        try {
+            // Получаем кадр камеры вместе с AR-объектами
+            val bitmap = ArSnapshotCapturer.capture(surface)
+
+            // Добавляем расстояние на фотографию
+            val result = MeasurementSnapshotRenderer.drawDistanceLabel(
+                bitmap = bitmap,
+                distanceMm = currentDistance,
+                labelX = currentPosition.x,
+                labelY = currentPosition.y,
+                sceneWidth = sceneWidth,
+                sceneHeight = sceneHeight,
+                density = context.resources.displayMetrics.density,
+                scaledDensity = context.resources.displayMetrics.scaledDensity
+            )
+
+            snapshotCapturedCallback.value(result)
+
+        } catch (error: CancellationException) {
+            throw error
+
+        } catch (error: Exception) {
+            snapshotFailedCallback.value(
+                error.message ?: "Ошибка создания снимка"
+            )
+        }
+    }
+
+
     // Удаляем вторую точку и соединительную линию
     fun removeSecondPoint() {
         val root = measurementNodes.firstOrNull()
@@ -226,8 +299,12 @@ fun ARCameraView(
             engine = engine,
 
             planeRenderer = false,
+            //materialLoader = materialLoader,
 
             childNodes = measurementNodes.toList(),
+            onViewCreated = {
+                arSurfaceView.value = this
+            },
 
             onSessionUpdated = { _, frame ->
 
