@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.android.filament.Engine
 import com.google.android.filament.gltfio.MaterialProvider.MaterialKey
 import com.google.ar.core.Anchor
 import com.google.ar.core.HitResult
@@ -121,7 +122,7 @@ fun ARCameraView(
     }
 
     val measurementNodes = remember {
-        mutableStateListOf<AnchorNode>()
+        mutableStateListOf<MeasurementAnchorNode>()
     }
 
     // Ссылки на геометрию для корректного удаления
@@ -248,7 +249,7 @@ fun ARCameraView(
     }
 
     // Удаляем всё измерение
-    fun removeAllPoints() {
+    fun removeAllPoints(sessionClosing: Boolean = false) {
         removeSecondPoint()
 
         val root = measurementNodes.firstOrNull()
@@ -263,9 +264,8 @@ fun ARCameraView(
 
         if (root != null) {
             arSurfaceView.value?.removeChildNode(root)
-            // AnchorNode.destroy() также освобождает AR-якорь
-            root.destroy()
-        } else {
+            root.destroy(detachFromSession = !sessionClosing)
+        } else if (!sessionClosing) {
             measurementAnchor[0]?.detach()
         }
 
@@ -278,7 +278,8 @@ fun ARCameraView(
     // Освобождаем узлы до удаления сцены в rememberScene.
     DisposableEffect(scene) {
         onDispose {
-            removeAllPoints()
+            removeAllPoints(sessionClosing = true)
+            onCountCallback.value(0)
         }
     }
 
@@ -407,7 +408,7 @@ fun ARCameraView(
                             0 -> {
                                 val anchor = hit.createAnchor()
 
-                                val root = AnchorNode(
+                                val root = MeasurementAnchorNode(
                                     engine = engine,
                                     anchor = anchor
                                 ).apply {
@@ -674,6 +675,22 @@ fun ARCameraView(
                         vertical = 6.dp
                     )
             )
+        }
+    }
+}
+
+private class MeasurementAnchorNode(engine: Engine, anchor: Anchor) : AnchorNode(engine, anchor) {
+    private var detachFromSessionOnDestroy = true
+
+    fun destroy(detachFromSession: Boolean) {
+        detachFromSessionOnDestroy = detachFromSession
+        destroy()
+    }
+
+    override fun detachAnchor() {
+        // SceneView может уже закрывать сессию ARCore в фоновом потоке.
+        if (detachFromSessionOnDestroy) {
+            super.detachAnchor()
         }
     }
 }
