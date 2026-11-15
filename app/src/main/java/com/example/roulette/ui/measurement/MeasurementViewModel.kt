@@ -13,9 +13,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 data class MeasurementUiState(
     val pointCount: Int = 0,
@@ -51,6 +48,19 @@ class MeasurementViewModel(
 
     val saveEvents = _saveEvents.receiveAsFlow()
 
+    val savedMeasurements = repository.getAllMeasurements()
+
+    suspend fun loadSavedMeasurementImage(id: Long, maxSizePx: Int? = null): Bitmap? =
+        repository.loadMeasurementImage(id, maxSizePx)
+
+    suspend fun renameSavedMeasurement(id: Long, name: String) {
+        repository.renameMeasurement(id, name)
+    }
+
+    suspend fun deleteSavedMeasurement(id: Long) {
+        repository.deleteMeasurement(id)
+    }
+
     fun onPointCountChanged(count: Int) {
         _uiState.update { current ->
             current.copy(
@@ -73,7 +83,8 @@ class MeasurementViewModel(
     // Сохранение готового AR-снимка
     fun saveMeasurement(
         bitmap: Bitmap,
-        distanceMm: Int
+        distanceMm: Int,
+        name: String
     ) {
         // Защита от повторного нажатия
         if (_uiState.value.isSaving) return
@@ -84,14 +95,6 @@ class MeasurementViewModel(
 
         viewModelScope.launch {
             try {
-                // Автоматическое название измерения
-                val date = SimpleDateFormat(
-                    "dd.MM.yyyy HH:mm",
-                    Locale.getDefault()
-                ).format(Date())
-
-                val name = "Измерение $date"
-
                 // Передаём данные в Repository
                 val id = repository.saveMeasurement(
                     bitmap = bitmap,

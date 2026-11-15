@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.android.filament.gltfio.MaterialProvider.MaterialKey
 import com.google.ar.core.Anchor
 import com.google.ar.core.HitResult
 import com.google.ar.core.Plane
@@ -30,18 +31,19 @@ import com.google.ar.core.Point
 import com.google.ar.core.TrackingState
 import dev.romainguy.kotlin.math.Quaternion
 import io.github.sceneview.ar.ARScene
+import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.ar.node.AnchorNode
-import io.github.sceneview.loaders.MaterialLoader
 import io.github.sceneview.math.Position
 import io.github.sceneview.math.Scale
 import io.github.sceneview.node.CylinderNode
 import io.github.sceneview.node.SphereNode
 import io.github.sceneview.rememberEngine
+import io.github.sceneview.rememberMaterialLoader
+import io.github.sceneview.rememberScene
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 import android.graphics.Bitmap
-import android.view.SurfaceView
 import com.example.roulette.data.capture.ArSnapshotCapturer
 import kotlinx.coroutines.CancellationException
 
@@ -63,9 +65,11 @@ fun ARCameraView(
 ) {
     val engine = rememberEngine()
     val context = LocalContext.current
+    val scene = rememberScene(engine)
+    val materialLoader = rememberMaterialLoader(engine, context)
     // Ссылка на поверхность, в которой рисуется AR-сцена
     val arSurfaceView = remember {
-        mutableStateOf<SurfaceView?>(null)
+        mutableStateOf<ARSceneView?>(null)
     }
 
 // Актуальные обработчики результата захвата
@@ -103,20 +107,12 @@ fun ARCameraView(
     val onCountCallback =
         rememberUpdatedState(onPointCountChanged)
 
-    val materialLoader = remember(engine, context) {
-        MaterialLoader(
-            engine = engine,
-            context = context
-        )
-    }
-
     val yellowMaterial = remember(materialLoader) {
-        materialLoader.createColorInstance(
-            color = Color.Yellow,
-            metallic = 0f,
-            roughness = 1f,
-            reflectance = 0.5f
-        )
+        // Цвет меток не зависит от оценки освещения ARCore.
+        val key = MaterialKey().apply { unlit = true }
+        materialLoader.createUbershaderInstance(key)?.apply {
+            setParameter("baseColorFactor", 1f, 1f, 0f, 1f)
+        } ?: materialLoader.createColorInstance(Color.Yellow)
     }
 
     // Одно измерение = один AR-якорь
@@ -266,6 +262,7 @@ fun ARCameraView(
         measurementNodes.clear()
 
         if (root != null) {
+            arSurfaceView.value?.removeChildNode(root)
             // AnchorNode.destroy() также освобождает AR-якорь
             root.destroy()
         } else {
@@ -278,7 +275,8 @@ fun ARCameraView(
         labelPosition = null
     }
 
-    DisposableEffect(Unit) {
+    // Освобождаем узлы до удаления сцены в rememberScene.
+    DisposableEffect(scene) {
         onDispose {
             removeAllPoints()
         }
@@ -297,9 +295,10 @@ fun ARCameraView(
 
             // Обязательно тот же Engine
             engine = engine,
+            scene = scene,
+            materialLoader = materialLoader,
 
             planeRenderer = false,
-            //materialLoader = materialLoader,
 
             childNodes = measurementNodes.toList(),
             onViewCreated = {

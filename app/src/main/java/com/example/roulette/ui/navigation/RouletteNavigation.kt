@@ -63,6 +63,7 @@ fun RouletteNavigation(
         // Экран истории
         composable(Routes.HISTORY) {
             HistoryScreen(
+                viewModel = measurementViewModel,
                 onBackClick = {
                     navController.popBackStack()
                 }

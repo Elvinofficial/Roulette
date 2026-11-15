@@ -70,7 +70,7 @@ class ImageStorage(context: Context) {
     /**
      * Загружает фотографию по имени файла.
      */
-    suspend fun load(fileName: String): Bitmap? =
+    suspend fun load(fileName: String, maxSizePx: Int? = null): Bitmap? =
         withContext(Dispatchers.IO) {
 
             val file = getImageFile(fileName)
@@ -79,7 +79,21 @@ class ImageStorage(context: Context) {
                 return@withContext null
             }
 
-            BitmapFactory.decodeFile(file.absolutePath)
+            if (maxSizePx == null) {
+                return@withContext BitmapFactory.decodeFile(file.absolutePath)
+            }
+
+            require(maxSizePx > 0)
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(file.absolutePath, options)
+            val longestSide = maxOf(options.outWidth, options.outHeight)
+            var sampleSize = 1
+            while (longestSide / sampleSize / 2 >= maxSizePx) {
+                sampleSize *= 2
+            }
+            options.inJustDecodeBounds = false
+            options.inSampleSize = sampleSize
+            BitmapFactory.decodeFile(file.absolutePath, options)
         }
 
     /**

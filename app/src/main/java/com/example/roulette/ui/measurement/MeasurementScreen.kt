@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.window.Dialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
 import kotlinx.coroutines.flow.collect
 
 // Цвет вспомогательного текста интерфейса
@@ -119,6 +120,8 @@ fun MeasurementScreen(
     var previewDistanceMm by remember {
         mutableStateOf<Int?>(null)
     }
+
+    var measurementName by remember { mutableStateOf("") }
 
 // Выполняется ли захват изображения
     var isCapturing by remember {
@@ -345,6 +348,7 @@ fun MeasurementScreen(
             icon = Icons.Default.Save,
 
             onClick = {
+                measurementName = ""
                 captureDistanceMm = uiState.distanceMm
                 isCapturing = true
                 captureRequest++
@@ -386,7 +390,8 @@ fun MeasurementScreen(
 
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 520.dp),
+                        .weight(1f, fill = false)
+                        .heightIn(max = 360.dp),
 
                     contentScale = ContentScale.Fit
                 )
@@ -395,7 +400,17 @@ fun MeasurementScreen(
                     modifier = Modifier.height(12.dp)
                 )
 
+                OutlinedTextField(
+                    value = measurementName,
+                    onValueChange = { measurementName = it },
+                    label = { Text("Название измерения") },
+                    placeholder = { Text("Измерение") },
+                    enabled = !uiState.isSaving,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
+                Spacer(modifier = Modifier.height(12.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -422,7 +437,8 @@ fun MeasurementScreen(
                             if (distance != null) {
                                 viewModel.saveMeasurement(
                                     bitmap = bitmap,
-                                    distanceMm = distance
+                                    distanceMm = distance,
+                                    name = measurementName
                                 )
                             }
                         },

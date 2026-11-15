@@ -129,12 +129,13 @@ class MeasurementRepository(
     }
 
     // Загрузить фотографию измерения
-    suspend fun loadMeasurementImage(id: Long): Bitmap? {
+    suspend fun loadMeasurementImage(id: Long, maxSizePx: Int? = null): Bitmap? {
 
         val measurement = dao.getById(id) ?: return null
 
         return imageStorage.load(
-            measurement.imageFileName
+            measurement.imageFileName,
+            maxSizePx
         )
     }
 
