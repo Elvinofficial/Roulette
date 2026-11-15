@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.roulette.ui.components.RouletteButton
 import com.example.roulette.ui.measurement.MeasurementViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -71,18 +72,19 @@ fun HistoryScreen(
             .background(HistoryBackground)
             .safeDrawingPadding()
     ) {
+
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Назад",
-                    tint = Graphite
-                )
-            }
+            RouletteButton(
+                text = "Назад",
+                onClick = onBackClick
+            )
+
             Text(
                 text = "История измерений",
                 fontSize = 24.sp,
@@ -90,7 +92,9 @@ fun HistoryScreen(
                 color = Graphite
             )
         }
+
         HorizontalDivider(color = CardBorder)
+
 
         val entries = measurements
         if (entries.isNullOrEmpty()) {
@@ -164,6 +168,7 @@ fun HistoryScreen(
     if (id != null) {
         AlertDialog(
             onDismissRequest = { if (!isUpdating) selectedId = null },
+            containerColor = Color.White,
             title = {
                 Text(if (isRenaming) "Переименовать измерение" else "Удалить измерение?")
             },
