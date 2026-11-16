@@ -102,6 +102,10 @@ fun MeasurementScreen(
         mutableStateOf(false)
     }
 
+    var isApproximatePlacementReady by remember {
+        mutableStateOf(false)
+    }
+
     // Команда получения AR-снимка
     var captureRequest by remember {
         mutableIntStateOf(0)
@@ -202,6 +206,24 @@ fun MeasurementScreen(
         }
 
 
+//        Button(
+//            onClick = {
+//                previewBitmap = Bitmap.createBitmap(
+//                    800,
+//                    500,
+//                    Bitmap.Config.ARGB_8888
+//                ).apply {
+//                    eraseColor(android.graphics.Color.LTGRAY)
+//                }
+//
+//                previewDistanceMm = 250
+//                measurementName = "Тестовое измерение"
+//            },
+//            modifier = Modifier.fillMaxWidth()
+//        ) {
+//            Text("ТЕСТ: открыть окно сохранения")
+//        }
+
         // ОБЛАСТЬ AR-КАМЕРЫ
         Box(
             modifier = Modifier
@@ -211,6 +233,7 @@ fun MeasurementScreen(
                 .background(
                     if (AppConfig.AR_ENABLED) {
                         Color.Black
+                        //Color(0xFFF0F0F0)
                     } else {
                         Color(0xFFF0F0F0)
                     }
@@ -233,6 +256,11 @@ fun MeasurementScreen(
                     onPlacementReadyChanged = { ready ->
                         isPlacementReady = ready
                     },
+
+                    onApproximatePlacementChanged = { ready ->
+                        isApproximatePlacementReady = ready
+                    },
+
                     // Получает координаты успешно установленной точки в пространстве
                     onPointPlaced = { x, y, z ->
                         Log.d(
@@ -265,6 +293,9 @@ fun MeasurementScreen(
                         ).show()
                     },
                 )
+//                TestScreen(
+//                    modifier = Modifier.fillMaxSize()
+//                )
             }
                 // Прицел
             CenterReticle(
@@ -278,6 +309,28 @@ fun MeasurementScreen(
             fontSize = 16.sp,
             color = SecondaryText
         )
+
+
+//        val placementStatus = when {
+//            isPlacementReady ->
+//                "● Точное размещение доступно"
+//
+//            isApproximatePlacementReady ->
+//                "● Приблизительное размещение доступно"
+//
+//            else ->
+//                "● Поиск поверхности..."
+//        }
+
+//        Text(
+//            text = placementStatus,
+//            fontSize = 14.sp,
+//            color = when {
+//                isPlacementReady -> Color(0xFF238B45)
+//                isApproximatePlacementReady -> Color(0xFFD49A00)
+//                else -> SecondaryText
+//            }
+//        )
 
         // УПРАВЛЕНИЕ УСТАНОВЛЕННЫМИ ТОЧКАМИ
         Row(

@@ -61,7 +61,30 @@ class MeasurementRepository(
                 imageFileName = fileName
             )
 
-            return dao.insert(entity)
+
+            val measurementId = dao.insert(entity)
+
+    // После успешного сохранения в Room
+    // дополнительно сохраняем фотографию в галерею.
+            try {
+                val gallerySaved = imageStorage.saveToGallery(bitmap)
+
+                if (!gallerySaved) {
+                    Log.w(
+                        "MeasurementRepository",
+                        "Не удалось сохранить фотографию в галерею"
+                    )
+                }
+            } catch (error: Exception) {
+                Log.w(
+                    "MeasurementRepository",
+                    "Ошибка сохранения фотографии в галерею",
+                    error
+                )
+            }
+
+            return measurementId
+
 
         } catch (error: Exception) {
 

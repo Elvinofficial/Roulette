@@ -1,24 +1,42 @@
 
 package com.example.roulette.ui.guide
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Save
+
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
+import androidx.compose.ui.window.Dialog
 import com.example.roulette.ui.components.RouletteButton
+import com.example.roulette.R
 
 // Цветовая палитра приложения
 private val Graphite = Color(0xFF242424)
@@ -62,14 +80,14 @@ fun GuideScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Рулетка",
+                    text = "Мерило",
                     fontSize = 25.sp,
                     fontWeight = FontWeight.Bold,
                     color = Graphite
                 )
 
                 Text(
-                    text = "Версия 0.1",
+                    text = "Версия 1.0",
                     fontSize = 12.sp,
                     color = SecondaryText
                 )
@@ -107,7 +125,9 @@ fun GuideScreen(
 
             GuideCard(
                 title = "1. Подготовка",
-                description = "При первом запуске разрешите приложению доступ к камере."
+                description = "При первом запуске разрешите приложению доступ к камере."+
+                "Нажмите на изображение ниже, чтобы рассмотреть интерфейс.",
+                //imageRes = R.drawable.картинка добавлять в папку рес/дравабле
             )
 
             GuideCard(
@@ -134,40 +154,51 @@ fun GuideScreen(
             Spacer(modifier = Modifier.height(3.dp))
 
             // ОПИСАНИЕ КНОПОК
+
             SectionTitle("Кнопки управления")
 
             GuideCard(
-                title = "«+» — добавить точку",
-                description = "Устанавливает новую точку в центре перекрестия,когда система " +
-                        "определила подходящее положение. "
+                title = "Добавить точку",
+                description = "Устанавливает новую точку в центре перекрестия, " +
+                        "когда система определила подходящее положение.",
+                icon = Icons.Default.Add
             )
 
             GuideCard(
-                title = "«Отменить»",
-                description = "Удаляет последнюю установленную точку. Позволяет исправить измерение " +
-                        "без полной очистки."
+                title = "Отменить",
+                description = "Удаляет последнюю установленную точку. " +
+                        "Позволяет исправить измерение без полной очистки.",
+                icon = Icons.AutoMirrored.Filled.Undo
             )
 
             GuideCard(
-                title = "«Очистить»",
-                description = "Удаляет все точки текущего измерения и позволяет начать заново."
+                title = "Очистить",
+                description = "Удаляет все точки текущего измерения " +
+                        "и позволяет начать заново.",
+                icon = Icons.Default.Delete
             )
 
             GuideCard(
-                title = "«История»",
-                description = "Открывает экран истории измерений. " +
-                        "Ниже в руководстве представлено подробное описание экрана истории."
+                title = "История",
+                description = "Открывает экран истории измерений, " +
+                        "где можно просмотреть, переименовать или удалить сохранённые записи.",
+                icon = Icons.Default.History
             )
 
             GuideCard(
-                title = "«Помощь»",
-                description = "Открывает данное руководство пользователя. Для закрытия нажмите кнопку назад."
+                title = "Помощь",
+                description = "Открывает руководство пользователя " +
+                        "с описанием функций приложения.",
+                icon = Icons.Default.Info
             )
 
             GuideCard(
-                title = "«Сохранить измерение»",
-                description = "Предназначена для сохранения результата измерения в историю."
+                title = "Сохранить измерение",
+                description = "Сохраняет результат измерения вместе с фотографией " +
+                        "и названием в историю приложения.",
+                icon = Icons.Default.Save
             )
+
 
             Spacer(modifier = Modifier.height(6.dp))
 
@@ -176,25 +207,33 @@ fun GuideScreen(
 
             GuideCard(
                 title = "Сохранённые измерения",
-                description = "На карточке измерения отображаются миниатюра снимка, название, " +
-                        "дата и время сохранения. Новые записи находятся в начале списка."
+                description = "Здесь отображаются все сохранённые измерения: " +
+                        "фотография, название, дата и время. " +
+                        "Нажмите на изображение ниже, чтобы рассмотреть интерфейс.",
+                imageRes = R.drawable.guide_history
             )
 
             GuideCard(
                 title = "Просмотр снимка",
                 description = "Нажмите на карточку измерения, чтобы открыть снимок " +
-                        "на весь экран. Для возврата к списку нажмите крестик."
+                        "на весь экран. Для возврата к списку нажмите крестик." +
+                        "Нажмите на изображение ниже, чтобы рассмотреть интерфейс.",
+                imageRes = R.drawable.watch_photo
             )
 
             GuideCard(
                 title = "Переименование",
                 description = "Нажмите значок карандаша на карточке, введите новое название " +
-                        "и нажмите «Сохранить»."
+                        "и нажмите «Сохранить»." +
+                        "Нажмите на изображение ниже, чтобы рассмотреть интерфейс.",
+                imageRes = R.drawable.guide_rename
             )
 
             GuideCard(
                 title = "Удаление",
-                description = "Нажмите значок корзины на карточке и подтвердите удаление записи."
+                description = "Нажмите значок корзины на карточке и подтвердите удаление записи." +
+                        "Нажмите на изображение ниже, чтобы рассмотреть интерфейс.",
+                imageRes = R.drawable.guide_delete
             )
 
             // РЕКОМЕНДАЦИИ
@@ -243,10 +282,15 @@ private fun SectionTitle(
 
 //Универсальная информационная карточка руководства
 @Composable
+
 private fun GuideCard(
     title: String,
-    description: String
+    description: String,
+    icon: ImageVector? = null,
+    imageRes: Int? = null
 ) {
+    var showFullImage by remember { mutableStateOf(false) }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = LightSurface,
@@ -256,13 +300,26 @@ private fun GuideCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (icon != null) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = Graphite,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
 
-            Text(
-                text = title,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Graphite
-            )
+                Text(
+                    text = title,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Graphite
+                )
+            }
 
             Text(
                 text = description,
@@ -270,6 +327,51 @@ private fun GuideCard(
                 lineHeight = 23.sp,
                 color = SecondaryText
             )
+
+            if (imageRes != null) {
+                Image(
+                    painter = painterResource(imageRes),
+                    contentDescription = title,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 320.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            showFullImage = true
+                        }
+                )
+
+                Text(
+                    text = "Нажмите на изображение для увеличения",
+                    fontSize = 12.sp,
+                    color = SecondaryText
+                )
+            }
+        }
+    }
+
+    if (showFullImage && imageRes != null) {
+        Dialog(
+            onDismissRequest = { showFullImage = false },
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+                    .clickable { showFullImage = false },
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(imageRes),
+                    contentDescription = title,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
     }
 }

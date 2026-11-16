@@ -46,6 +46,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sqrt
 import android.graphics.Bitmap
 import com.example.roulette.data.capture.ArSnapshotCapturer
+import com.google.ar.core.Config
 import kotlinx.coroutines.CancellationException
 
 @Composable
@@ -56,6 +57,7 @@ fun ARCameraView(
     clearPointsRequest: Int = 0,
     onPointPlaced: (Float, Float, Float) -> Unit = { _, _, _ -> },
     onPlacementReadyChanged: (Boolean) -> Unit = {},
+    onApproximatePlacementChanged: (Boolean) -> Unit = {},
     onPointRemoved: () -> Unit = {},
     onAllPointsRemoved: () -> Unit = {},
     onDistanceChanged: (Int?) -> Unit = {},
@@ -96,6 +98,9 @@ fun ARCameraView(
     val lastReadyState = remember {
         booleanArrayOf(false)
     }
+    val lastApproximateReadyState = remember {
+        booleanArrayOf(false)
+    }
 
     val onPlacedCallback = rememberUpdatedState(onPointPlaced)
     val onReadyCallback =
@@ -109,11 +114,12 @@ fun ARCameraView(
         rememberUpdatedState(onPointCountChanged)
 
     val yellowMaterial = remember(materialLoader) {
-        // Цвет меток не зависит от оценки освещения ARCore.
-        val key = MaterialKey().apply { unlit = true }
-        materialLoader.createUbershaderInstance(key)?.apply {
-            setParameter("baseColorFactor", 1f, 1f, 0f, 1f)
-        } ?: materialLoader.createColorInstance(Color.Yellow)
+        materialLoader.createColorInstance(
+            color = Color(0xFF00FF00),
+            metallic = 0f,
+            roughness = 1f,
+            reflectance = 0.5f
+        )
     }
 
     // Одно измерение = один AR-якорь
@@ -299,6 +305,15 @@ fun ARCameraView(
             scene = scene,
             materialLoader = materialLoader,
 
+            // ТЕСТ: отключаем оценку освещения ARCore
+            sessionConfiguration = { _, config ->
+                config.lightEstimationMode =
+                    Config.LightEstimationMode.DISABLED
+                // Разрешаем приблизительное размещение точек.
+                config.instantPlacementMode =
+                    Config.InstantPlacementMode.LOCAL_Y_UP
+            },
+
             planeRenderer = false,
 
             childNodes = measurementNodes.toList(),
@@ -345,6 +360,34 @@ fun ARCameraView(
 
                 val hit: HitResult? = planeHit ?: pointHit
                 val isReady = hit != null
+
+
+// Попытка приблизительного определения точки,
+// если обычное определение поверхности не удалось.
+                val approximateHit: HitResult? =
+                    if (
+                        tracking &&
+                        hit == null &&
+                        pointCount[0] < 2 &&
+                        sceneWidth > 0 &&
+                        sceneHeight > 0
+                    ) {
+                        frame.hitTestInstantPlacement(
+                            sceneWidth / 2f,
+                            sceneHeight / 2f,
+                            1.0f
+                        ).firstOrNull()
+                    } else {
+                        null
+                    }
+                val canPlaceApproximately = approximateHit != null
+                val approximateReady = canPlaceApproximately && !isReady
+
+                if (approximateReady != lastApproximateReadyState[0]) {
+                    lastApproximateReadyState[0] = approximateReady
+
+                    onApproximatePlacementChanged(approximateReady)
+                }
 
                 if (isReady != lastReadyState[0]) {
                     lastReadyState[0] = isReady

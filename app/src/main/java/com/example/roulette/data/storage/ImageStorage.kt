@@ -9,6 +9,9 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.util.UUID
+import android.content.ContentValues
+import android.os.Build
+import android.provider.MediaStore
 
 /**
  * Отвечает за хранение фотографий измерений
@@ -16,6 +19,7 @@ import java.util.UUID
  */
 class ImageStorage(context: Context) {
 
+    private val appContext = context.applicationContext
     private val imageDirectory = File(
         context.applicationContext.filesDir,
         "measurements"
@@ -64,6 +68,69 @@ class ImageStorage(context: Context) {
                 file.delete()
 
                 throw error
+            }
+        }
+
+
+    /**
+     * Сохраняет фотографию в галерею смартфона.
+     */
+    suspend fun saveToGallery(bitmap: Bitmap): Boolean =
+        withContext(Dispatchers.IO) {
+
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                return@withContext false
+            }
+
+            val resolver = appContext.contentResolver
+
+            val values = ContentValues().apply {
+                put(
+                    MediaStore.Images.Media.DISPLAY_NAME,
+                    "roulette_${UUID.randomUUID()}.jpg"
+                )
+                put(
+                    MediaStore.Images.Media.MIME_TYPE,
+                    "image/jpeg"
+                )
+                put(
+                    MediaStore.Images.Media.RELATIVE_PATH,
+                    "Pictures/Roulette"
+                )
+                put(
+                    MediaStore.Images.Media.IS_PENDING,
+                    1
+                )
+            }
+
+            val uri = resolver.insert(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                values
+            ) ?: return@withContext false
+
+            try {
+                val success = resolver.openOutputStream(uri)?.use {
+                    bitmap.compress(
+                        Bitmap.CompressFormat.JPEG,
+                        90,
+                        it
+                    )
+                } ?: false
+
+                if (!success) {
+                    resolver.delete(uri, null, null)
+                    return@withContext false
+                }
+
+                val updateValues = ContentValues().apply {
+                    put(MediaStore.Images.Media.IS_PENDING, 0)
+                }
+
+                resolver.update(uri, updateValues, null, null) > 0
+
+            } catch (error: Exception) {
+                resolver.delete(uri, null, null)
+                false
             }
         }
 
